@@ -1,24 +1,24 @@
 use async_trait::async_trait;
-use cdrs_tokio::cluster::{NodeTcpConfigBuilder, TcpConnectionManager};
 use cdrs_tokio::cluster::session::{Session, SessionBuilder, TcpSessionBuilder};
+use cdrs_tokio::cluster::{NodeTcpConfigBuilder, TcpConnectionManager};
 use cdrs_tokio::load_balancing::RoundRobinLoadBalancingStrategy;
 use cdrs_tokio::transport::TransportTcp;
-use cdrs_tokio::types::ByName;
 use cdrs_tokio::types::rows::Row;
-
-use cqlmig::{Db, DbRow};
+use cdrs_tokio::types::ByName;
 
 pub use cqlmig::{CqlMigrator, GenResult, Migration};
+use cqlmig::{Db, DbRow};
 
 /// A db session.
-pub type DbSession = Session<TransportTcp, TcpConnectionManager, RoundRobinLoadBalancingStrategy<TransportTcp, TcpConnectionManager>>;
+pub type DbSession = Session<
+    TransportTcp,
+    TcpConnectionManager,
+    RoundRobinLoadBalancingStrategy<TransportTcp, TcpConnectionManager>,
+>;
 
-
-impl<'a> Into<CdrsDbSession<'a>> for &'a DbSession {
-    fn into(self) -> CdrsDbSession<'a> {
-        CdrsDbSession {
-            ses: self
-        }
+impl<'a> From<&'a DbSession> for CdrsDbSession<'a> {
+    fn from(db: &'a DbSession) -> Self {
+        CdrsDbSession::from(db)
     }
 }
 
@@ -61,9 +61,7 @@ impl<'a> CdrsDbSession<'a> {
     /// See [`CdrsDbSession`] for an example of creating a custom connection.
     pub async fn connect_no_auth(addrs: Vec<String>) -> GenResult<DbSession> {
         let cluster_config = NodeTcpConfigBuilder::new()
-            .with_contact_points(addrs.iter()
-                .map(|it| it.into())
-                .collect())
+            .with_contact_points(addrs.iter().map(|it| it.into()).collect())
             .build()
             .await?;
         let ses = TcpSessionBuilder::new(RoundRobinLoadBalancingStrategy::new(), cluster_config)
@@ -98,12 +96,13 @@ impl<'a> Db for CdrsDbSession<'a> {
     type Row = ARow;
 
     async fn query(&self, query: &str) -> GenResult<Vec<Self::Row>> {
-        let rows = self.ses
+        let rows = self
+            .ses
             .query(query)
             .await?
             .response_body()?
             .into_rows()
-            .unwrap_or(vec![]);
+            .unwrap_or_default();
 
         let mut res: Vec<Self::Row> = vec![];
 
@@ -113,7 +112,6 @@ impl<'a> Db for CdrsDbSession<'a> {
         Ok(res)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -127,10 +125,40 @@ mod tests {
 
     use crate::CdrsDbSession;
 
-    async fn run_in_test_server<T, Fut>(fn_test: T)
-        where
-            T: FnOnce(String) -> Fut + Send + 'static,
-            Fut: Future<Output=GenResult<()>> + Send + 'static
+    #[tokio::test]
+    async fn test_migrations_with_server() {
+        test_migrations(String::from("localhost:9042"))
+            .await
+            .unwrap();
+    }
+
+    async fn test_migrations(addr: String) -> GenResult<()> {
+        async fn run(addr: String) -> GenResult<()> {
+            let ses = CdrsDbSession::connect_no_auth(vec![addr]).await?;
+            let db: CdrsDbSession = ses.borrow().into();
+            CqlMigrator::default()
+                .with_logger(|s| println!("{}", s))
+                .migrate(&db, Vec::<Migration>::new())
+                .await
+        }
+
+        let _ = run(addr.clone()).await?;
+        // Run twice to make sure it does not apply the same migrations twice
+        let _ = run(addr.clone()).await?;
+        Ok(())
+    }
+
+    //For local testing
+    //#[tokio::test]
+    async fn test_migrations_with_docker() {
+        run_with_docker(|addr| async move { test_migrations(addr).await }).await;
+    }
+
+    // For local testing
+    async fn run_with_docker<T, Fut>(fn_test: T)
+    where
+        T: FnOnce(String) -> Fut + Send + 'static,
+        Fut: Future<Output = GenResult<()>> + Send + 'static,
     {
         let mut dt = DockerTest::new();
         let scylladb = Composition::with_repository("scylladb/scylla")
@@ -138,38 +166,19 @@ mod tests {
             .clone();
 
         dt.add_composition(scylladb);
-        let _ = dt.run_async(|ops| async move {
-            // A handle to operate on the Container.
-            let container = ops.handle("scylladb/scylla");
-            // The container is in a running state at this point.
-            let host_port = container.host_port(9042);
-            let bind = match host_port {
-                None => panic!("scylladb port not found"),
-                Some(t) => t
-            };
+        let _ = dt
+            .run_async(|ops| async move {
+                // A handle to operate on the Container.
+                let container = ops.handle("scylladb/scylla");
+                // The container is in a running state at this point.
+                let host_port = container.host_port(9042);
+                let bind = match host_port {
+                    None => panic!("scylladb port not found"),
+                    Some(t) => t,
+                };
 
-            println!("CQL clients on {}:{} (unencrypted, non-shard-aware)", bind.0, bind.1);
-
-            let _ = fn_test(format!("{}:{}", bind.0, bind.1)).await.unwrap();
-        }).await;
-    }
-
-    #[tokio::test]
-    async fn it_works() {
-        run_in_test_server(|addr| async move {
-            async fn run(addr: String) -> GenResult<()> {
-                let ses = CdrsDbSession::connect_no_auth(vec![addr])
-                    .await?;
-                let db: CdrsDbSession = ses.borrow().into();
-                CqlMigrator::default()
-                    .with_logger(|s| println!("{}", s))
-                    .migrate(&db, Vec::<Migration>::new())
-                    .await
-            }
-
-            let _ = run(addr.clone()).await?;
-            let _ = run(addr.clone()).await?;
-            Ok(())
-        }).await;
+                let _ = fn_test(format!("{}:{}", bind.0, bind.1)).await.unwrap();
+            })
+            .await;
     }
 }

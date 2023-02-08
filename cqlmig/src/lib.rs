@@ -3,8 +3,8 @@ extern crate core;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::error::Error;
-use std::fmt::{Display, Formatter};
 use std::fmt::Write;
+use std::fmt::{Display, Formatter};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
@@ -14,20 +14,16 @@ use async_trait::async_trait;
 use regex::{Match, Regex};
 use ring::digest::{Context, SHA256};
 
-const SELECT_MIGRATIONS: &str =
-    "select version, description, status, shasum
+const SELECT_MIGRATIONS: &str = "select version, description, status, shasum
 from migration.migrations;";
 
-const SELECT_SCHEMA_TABLE: &str =
-    "select table_name
+const SELECT_SCHEMA_TABLE: &str = "select table_name
 from system_schema.tables
 where
    keyspace_name = 'migration'
    and table_name = 'migrations';";
 
-
-const UPDATE_MIGRATION: &str =
-    "update migration.migrations
+const UPDATE_MIGRATION: &str = "update migration.migrations
 set
     applied = toTimestamp(now()),
     description = '{description}',
@@ -36,22 +32,7 @@ set
     status_text = '{status_text}'
 where version = '{version}';";
 
-
 pub type GenResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
-
-// Helper Trait to clone an Option; or anything that boxes a value really.
-trait InnerClone<R> {
-    fn inner_clone(self) -> R;
-}
-
-impl<T: Clone> InnerClone<Option<T>> for &Option<T> {
-    fn inner_clone(self) -> Option<T> {
-        match self {
-            None => None,
-            Some(s) => Some(s.clone())
-        }
-    }
-}
 
 /// An abstraction around a database row in the simplest form.
 ///
@@ -68,10 +49,14 @@ pub trait DbRow {
 pub trait Db: Sync {
     type Row: DbRow;
     async fn query(&self, query: &str) -> GenResult<Vec<Self::Row>>;
-    async fn query_param(&self, query: &str, params: HashMap<String, String>) -> GenResult<Vec<Self::Row>> {
-        let q = params.iter()
-            .fold(query.to_string(),
-                  |q, p| q.replace(format!("{{{}}}", p.0).as_str(), p.1.as_str()));
+    async fn query_param(
+        &self,
+        query: &str,
+        params: HashMap<String, String>,
+    ) -> GenResult<Vec<Self::Row>> {
+        let q = params.iter().fold(query.to_string(), |q, p| {
+            q.replace(format!("{{{}}}", p.0).as_str(), p.1.as_str())
+        });
         self.query(q.as_str()).await
     }
 }
@@ -94,7 +79,7 @@ impl Error for MigrationError {}
 impl MigrationError {
     pub fn new(s: &str) -> Self {
         Self {
-            message: s.to_string()
+            message: s.to_string(),
         }
     }
 }
@@ -124,7 +109,7 @@ pub struct Version {
 
 impl Display for Version {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let desc = self.description.inner_clone().unwrap_or_default();
+        let desc = self.description.as_ref().cloned().unwrap_or_default();
         let res = write!(f, "{}.{}.{} {}", self.major, self.minor, self.patch, desc);
         res
     }
@@ -140,12 +125,24 @@ impl Eq for Version {}
 
 impl Ord for Version {
     fn cmp(&self, other: &Self) -> Ordering {
-        if self.major > other.major { return Ordering::Greater; }
-        if self.major < other.major { return Ordering::Less; }
-        if self.minor > other.minor { return Ordering::Greater; }
-        if self.minor < other.minor { return Ordering::Less; }
-        if self.patch > other.patch { return Ordering::Greater; }
-        if self.patch < other.patch { return Ordering::Less; }
+        if self.major > other.major {
+            return Ordering::Greater;
+        }
+        if self.major < other.major {
+            return Ordering::Less;
+        }
+        if self.minor > other.minor {
+            return Ordering::Greater;
+        }
+        if self.minor < other.minor {
+            return Ordering::Less;
+        }
+        if self.patch > other.patch {
+            return Ordering::Greater;
+        }
+        if self.patch < other.patch {
+            return Ordering::Less;
+        }
         Ordering::Equal
     }
 }
@@ -171,7 +168,6 @@ impl PartialOrd for Version {
         self.cmp(other) == Ordering::Greater || self.cmp(other) == Ordering::Equal
     }
 }
-
 
 impl FromStr for Version {
     type Err = MigrationError;
@@ -206,7 +202,7 @@ impl Version {
 
     /// Gets the description or empty string if there is no description.
     pub fn description(&self) -> String {
-        self.description.inner_clone().unwrap_or_default()
+        self.description.as_ref().cloned().unwrap_or_default()
     }
 }
 
@@ -214,7 +210,7 @@ impl Version {
 enum MigrationStatus {
     NA,
     Ok,
-    Error
+    Error,
 }
 
 /// A migration to be applied.
@@ -344,7 +340,8 @@ impl Migration {
             return Err(MigrationError::new("Not a file").into());
         }
 
-        let fname = path.file_name()
+        let fname = path
+            .file_name()
             .map(|s| s.to_str())
             .unwrap_or_default()
             .unwrap_or_default();
@@ -389,10 +386,12 @@ impl Migration {
                 }
                 cql_files
             }
-            false => if path.to_str().unwrap_or_default().ends_with(".cql") {
-                vec![path.canonicalize()?]
-            } else {
-                vec![]
+            false => {
+                if path.to_str().unwrap_or_default().ends_with(".cql") {
+                    vec![path.canonicalize()?]
+                } else {
+                    vec![]
+                }
             }
         };
 
@@ -481,11 +480,14 @@ async fn get_applied(db: &impl Db) -> GenResult<Vec<Migration>> {
 
         let d = row.string_by_name("description", String::new())?;
         applied.push(Migration {
-            version: Version { description: Some(d), ..v },
-            status: match  row.i32_by_name("status", 1)? {
+            version: Version {
+                description: Some(d),
+                ..v
+            },
+            status: match row.i32_by_name("status", 1)? {
                 -1 => MigrationStatus::NA,
                 0 => MigrationStatus::Ok,
-                _ => MigrationStatus::Error
+                _ => MigrationStatus::Error,
             },
             shasum: row.string_by_name("shasum", String::new())?,
             statements: vec![],
@@ -502,33 +504,58 @@ async fn apply(db: &impl Db, migrate: &Migration) -> GenResult<()> {
     Ok(())
 }
 
-async fn apply_with_update(db: &impl Db, migrate: &Migration, fail_on_err: bool, log: fn(String) -> ()) -> GenResult<()> {
+async fn apply_with_update(
+    db: &impl Db,
+    migrate: &Migration,
+    fail_on_err: bool,
+    log: fn(String) -> (),
+) -> GenResult<()> {
     let res = apply(db, migrate).await;
     if res.is_ok() {
-        log(format!("Successfully applied migration: {}", migrate.version))
+        log(format!(
+            "Successfully applied migration: {}",
+            migrate.version
+        ))
     }
     if res.is_err() {
-        log(format!("Failed applying migration: {} with error: {}", migrate.version, res.as_ref().unwrap_err()));
+        log(format!(
+            "Failed applying migration: {} with error: {}",
+            migrate.version,
+            res.as_ref().unwrap_err()
+        ));
         if fail_on_err {
             return Err(res.unwrap_err());
         }
     }
-    let _ = db.query_param(UPDATE_MIGRATION, HashMap::from([
-        ("description".to_string(), migrate.version.description()),
-        ("version".to_string(), migrate.version.to_semver()),
-        ("shasum".to_string(), migrate.shasum.to_string()),
-        ("status".to_string(), (if res.is_ok() { 0 } else { 1 }).to_string()),
-        ("status_text".to_string(), match &res {
-            Ok(_) => "ok".to_string(),
-            Err(e) => e.to_string()
-        })
-    ])).await?;
+    let _ = db
+        .query_param(
+            UPDATE_MIGRATION,
+            HashMap::from([
+                ("description".to_string(), migrate.version.description()),
+                ("version".to_string(), migrate.version.to_semver()),
+                ("shasum".to_string(), migrate.shasum.to_string()),
+                (
+                    "status".to_string(),
+                    (if res.is_ok() { 0 } else { 1 }).to_string(),
+                ),
+                (
+                    "status_text".to_string(),
+                    match &res {
+                        Ok(_) => "ok".to_string(),
+                        Err(e) => e.to_string(),
+                    },
+                ),
+            ]),
+        )
+        .await?;
     res
 }
 
 // Determine if a migration is in the list of applied migrations and was successful.
-fn was_applied(applied: &Vec<Migration>, m: &Migration) -> bool {
-    applied.iter().any(|it| it.version.eq(&m.version) && it.is_successful())
+fn was_applied(applied: &[Migration], m: &Migration) -> bool {
+    applied
+        .iter()
+        .any(|it| it.version.eq(&m.version) && it.is_successful())
 }
 
 // Called every time before running migrations.
@@ -538,7 +565,7 @@ async fn setup(db: &impl Db, log: fn(String) -> ()) -> GenResult<Vec<Migration>>
     let res = db.query(SELECT_SCHEMA_TABLE).await?;
     let applied = match res.len() {
         0 => vec![],
-        _ => get_applied(db).await?
+        _ => get_applied(db).await?,
     };
 
     let migrations = migrations();
@@ -578,7 +605,7 @@ async fn setup(db: &impl Db, log: fn(String) -> ()) -> GenResult<Vec<Migration>>
 #[derive(Clone)]
 pub struct CqlMigrator {
     log: fn(String) -> (),
-    continue_on_error: bool
+    continue_on_error: bool,
 }
 
 impl CqlMigrator {
@@ -591,7 +618,10 @@ impl CqlMigrator {
 
     /// If true, continue to run all migrations; default false.
     pub fn continue_on_error(self, b: bool) -> Self {
-        CqlMigrator { continue_on_error : b, ..self }
+        CqlMigrator {
+            continue_on_error: b,
+            ..self
+        }
     }
 
     /// Runs a list of provided migrations.
@@ -612,8 +642,7 @@ impl CqlMigrator {
     /// Run migrations in a folder or file.
     ///
     /// See [`CqlMigrator`] for an example.
-    pub async fn migrate_files(&self, db: &impl Db, path: Box<Path>) -> GenResult<()>
-    {
+    pub async fn migrate_files(&self, db: &impl Db, path: Box<Path>) -> GenResult<()> {
         self.migrate(db, Migration::from_path(path)?).await
     }
 }
@@ -629,21 +658,22 @@ impl Default for CqlMigrator {
 
 // init cqlmig table
 fn migrations() -> Vec<Migration> {
-    vec![
-        Migration::from_bytes("0.0.0__Init cqlmig", include_bytes!("migrations/V0_0_0__Init cqlmig.cql")).unwrap()
-    ]
+    vec![Migration::from_bytes(
+        "0.0.0__Init cqlmig",
+        include_bytes!("migrations/V0_0_0__Init cqlmig.cql"),
+    )
+    .unwrap()]
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::{Migration, Version};
     use std::path::Path;
     use std::str::FromStr;
-    use crate::{Migration, Version};
-    static SHASUM : &str = "e24e86bf84c256077c327bdb23e33b440c08dbde2e3b7f46b744b0b87f43f5a2";
+    static SHASUM: &str = "e24e86bf84c256077c327bdb23e33b440c08dbde2e3b7f46b744b0b87f43f5a2";
 
     #[test]
-    fn test_version()
-    {
+    fn test_version() {
         let max = Version::from_str("1.2.4").unwrap();
         let eq = Version::from_str("1.2.3").unwrap();
 
@@ -690,14 +720,19 @@ mod tests {
 
     #[test]
     fn test_from_new() {
-        let m = Migration::new("0.0.1", vec![
-            "CREATE TABLE IF NOT EXISTS examples.example ( key text PRIMARY KEY)"
-        ]);
+        let _ = Migration::new(
+            "0.0.1",
+            vec!["CREATE TABLE IF NOT EXISTS examples.example ( key text PRIMARY KEY)"],
+        );
     }
 
     #[test]
     fn test_from_bytes() {
-        let m = Migration::from_bytes("0.0.0", include_bytes!("migrations/V0_0_0__Init cqlmig.cql")).unwrap();
+        let m = Migration::from_bytes(
+            "0.0.0",
+            include_bytes!("migrations/V0_0_0__Init cqlmig.cql"),
+        )
+        .unwrap();
         assert_eq!(2, m.statements.len());
         assert!(m.statements[0].starts_with("CREATE KEYSPACE"));
         assert!(m.statements[1].starts_with("CREATE TABLE"));
@@ -706,7 +741,8 @@ mod tests {
 
     #[test]
     fn test_from_file() {
-        let m = Migration::from_file(Path::new("src/migrations/V0_0_0__Init cqlmig.cql").into()).unwrap();
+        let m = Migration::from_file(Path::new("src/migrations/V0_0_0__Init cqlmig.cql").into())
+            .unwrap();
         assert_eq!(2, m.statements.len());
         assert!(m.statements[0].starts_with("CREATE KEYSPACE"));
         assert!(m.statements[1].starts_with("CREATE TABLE"));
@@ -717,7 +753,8 @@ mod tests {
     fn test_from_path() {
         let m1 = Migration::from_path(Path::new("src/migrations").into()).unwrap();
         assert_eq!(1, m1.len());
-        let m2 = Migration::from_path(Path::new("src/migrations/V0_0_0__Init cqlmig.cql").into()).unwrap();
+        let m2 = Migration::from_path(Path::new("src/migrations/V0_0_0__Init cqlmig.cql").into())
+            .unwrap();
         assert_eq!(1, m2.len());
         assert_eq!(m1[0].shasum, m2[0].shasum);
         assert_eq!(SHASUM, m1[0].shasum);
