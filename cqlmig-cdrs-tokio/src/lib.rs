@@ -18,7 +18,7 @@ pub type DbSession = Session<
 
 impl<'a> From<&'a DbSession> for CdrsDbSession<'a> {
     fn from(db: &'a DbSession) -> Self {
-        CdrsDbSession::from(db)
+        CdrsDbSession::new(db)
     }
 }
 
@@ -70,8 +70,10 @@ impl<'a> CdrsDbSession<'a> {
     }
 
     /// Create a [`CdrsDbSession`].
-    pub fn from(db: &'a DbSession) -> CdrsDbSession<'a> {
-        db.into()
+    pub fn new(db: &'a DbSession) -> CdrsDbSession<'a> {
+        CdrsDbSession {
+            ses: db,
+        }
     }
 }
 
