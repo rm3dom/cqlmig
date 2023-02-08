@@ -312,12 +312,12 @@ impl Migration {
     ///
     /// # Examples
     ///
-    /// ````
+    /// ```ignore
     /// use cqlmig::Migration;
     ///
     /// let _ = Migration::from_bytes("0_0_1__Parties Init",
     ///             include_bytes!("migrations/V0_0_1__Parties Init.cql"));
-    /// ````
+    /// ```
     pub fn from_bytes(version: &str, bytes: &[u8]) -> GenResult<Self> {
         let shasum = sha256_digest64(bytes)?;
         Migration::from_reader(version, shasum.as_str(), bytes)
@@ -591,11 +591,11 @@ async fn setup(db: &impl Db, log: fn(String) -> ()) -> GenResult<Vec<Migration>>
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// use std::path::Path;
 /// use cqlmig::{CqlMigrator, Migration};
 ///
-/// let ses = CdrsDbSession::connect_no_auth(vec![addr]).await.unwrap();
+/// let ses = CdrsDbSession::connect_no_auth(vec!["localhost:9042"]).await.unwrap();
 /// let db: CdrsDbSession = ses.borrow().into();
 /// CqlMigrator::default()
 ///   .with_logger(|s| println!("{}", s))

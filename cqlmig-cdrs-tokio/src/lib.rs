@@ -28,7 +28,7 @@ impl<'a> From<&'a DbSession> for CdrsDbSession<'a> {
 ///
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// use cdrs_tokio::cluster::NodeTcpConfigBuilder;
 /// use cdrs_tokio::cluster::session::{SessionBuilder, TcpSessionBuilder};
 /// use cdrs_tokio::load_balancing::RoundRobinLoadBalancingStrategy;
