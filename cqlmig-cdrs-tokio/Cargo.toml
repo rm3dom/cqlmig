@@ -1,0 +1,16 @@
+[package]
+name = "cqlmig-cdrs-tokio"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cqlmig = { path = "../cqlmig" }
+tokio = { version = "1.23.0", features = ["macros", "rt-multi-thread"] }
+cdrs-tokio = "7.0.3"
+async-trait = "0.1.61"
+
+
+[dev-dependencies]
+dockertest = "0.3.1"

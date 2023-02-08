@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "cqlmig",
+    "cqlmig-cdrs-tokio"
+]

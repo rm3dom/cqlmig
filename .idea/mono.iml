@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="JAVA_MODULE" version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="true">
+    <exclude-output />
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/common/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/parties-client/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/parties-server/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/parties-proto/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cqlmig-cdrs-tokio/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cqlmig/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/common/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/cdrs/cdrs-extra-macro/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cdrs/cdrs-extra-tests/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cdrs/cdrs-extra/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/target" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>
