@@ -1,3 +1,8 @@
+//! Run migrations on a CQL database (Casandra or ScyllaDB).
+//!
+//! This package is the base package for cqlmig to actually run migrations use one of the
+//! client implementations, ie: cqlmig-cdrs-tokio.
+
 extern crate core;
 
 use std::cmp::Ordering;
@@ -91,6 +96,7 @@ impl MigrationError {
 /// * (major)(.minor)?(.patch)?(__description)?
 ///
 /// # Examples
+///
 /// ```
 /// use std::str::FromStr;
 /// use cqlmig::Version;
@@ -231,6 +237,8 @@ impl FromStr for Version {
 impl Version {
     /// Convert to a semantic version formatted string.
     ///
+    /// # Examples
+    ///
     /// ```
     /// use std::str::FromStr;
     /// use cqlmig::Version;
@@ -243,6 +251,8 @@ impl Version {
     }
 
     /// Gets the description or empty string if there is no description.
+    ///
+    /// # Examples
     ///
     /// ```
     /// use std::str::FromStr;
@@ -297,6 +307,8 @@ impl Migration {
     /// Create a new [`Migration`].
     ///
     /// See [`Version`] for `version` format.
+    ///
+    /// # Examples
     ///
     /// ```
     /// use cqlmig::Migration;
@@ -359,6 +371,8 @@ impl Migration {
     ///
     /// See [`Version`] for `version` format.
     ///
+    /// # Examples
+    ///
     /// ```ignore
     /// use cqlmig::Migration;
     ///
@@ -373,6 +387,8 @@ impl Migration {
     /// Create a new [`Migration`].
     ///
     /// See [`Version`] for `version` format.
+    ///
+    /// # Examples
     ///
     /// ```
     /// use std::path::Path;
@@ -408,6 +424,7 @@ impl Migration {
     ///
     /// See [`Version`] for `version` format.
     ///
+    /// # Examples
     ///
     /// ```
     /// use std::path::Path;
@@ -637,28 +654,7 @@ async fn setup(db: &impl Db, log: fn(String) -> ()) -> GenResult<Vec<Migration>>
     Ok(applied)
 }
 
-/// Entrypoint / Builder for running migrations.
-///
-/// [`CqlMigrator`] simply runs a list of [`Migration`]'s on a database with the following caveats / guarantees:
-/// * Migrations are sorted and run in order as provided.
-/// * Migrations are run only once.
-/// * Calling `migrate` multiple times with out of order versions will not produce an error.
-/// * Multiline comments are not supported.
-/// * CQL statements must be seperated by a ';' semicolon.
-///
-/// # Examples
-///
-/// ```ignore
-/// use std::path::Path;
-/// use cqlmig::{CqlMigrator, Migration};
-///
-/// let ses = CdrsDbSession::connect_no_auth(vec!["localhost:9042"]).await.unwrap();
-/// let db: CdrsDbSession = ses.borrow().into();
-/// CqlMigrator::default()
-///   .with_logger(|s| println!("{}", s))
-///   .migrate(&db, Migration::from_path(Path::new("src/migrations").into()).unwrap())
-///   .await.unwrap();
-/// ```
+/// Entrypoint / builder for running migrations.
 #[derive(Clone)]
 pub struct CqlMigrator {
     log: fn(String) -> (),

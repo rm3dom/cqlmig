@@ -1,3 +1,39 @@
+//! Run migrations on a CQL database (Casandra or ScyllaDB).
+//!
+//! This package is the cdrs-tokio implementation of cqlmig.
+//!
+//! # Examples
+//!
+//! ```
+//! # use std::error::Error;
+//! # #[tokio::main]
+//! # async fn main() -> Result<(), Box<dyn Error>> {
+//! use std::borrow::Borrow;
+//! use cdrs_tokio::cluster::NodeTcpConfigBuilder;
+//! use cdrs_tokio::cluster::session::{SessionBuilder, TcpSessionBuilder};
+//! use cdrs_tokio::load_balancing::RoundRobinLoadBalancingStrategy;
+//! use cqlmig::CqlMigrator;
+//! use cqlmig_cdrs_tokio::CdrsDbSession;
+//!
+//! let cluster_config = NodeTcpConfigBuilder::new()
+//!     .with_contact_points(vec!["localhost:9042".to_string().into()])
+//!     .build()
+//!     .await
+//!     .unwrap();
+//! let tcp_ses = TcpSessionBuilder::new(
+//!      RoundRobinLoadBalancingStrategy::new(),
+//!      cluster_config)
+//!  .build()
+//!  .unwrap();
+//!
+//! let ses: CdrsDbSession = tcp_ses.borrow().into();
+//!
+//! // Use: CqlMigrator::default().migrate_files(&ses, Path::new("path/to/migrations").into()).await.unwrap();
+//! // Or provider a vec of migrations
+//! CqlMigrator::default().migrate(&ses, vec![]).await.unwrap();
+//! # Ok(())
+//! # }
+
 use async_trait::async_trait;
 use cdrs_tokio::cluster::session::{Session, SessionBuilder, TcpSessionBuilder};
 use cdrs_tokio::cluster::{NodeTcpConfigBuilder, TcpConnectionManager};
@@ -6,7 +42,7 @@ use cdrs_tokio::transport::TransportTcp;
 use cdrs_tokio::types::rows::Row;
 use cdrs_tokio::types::ByName;
 
-pub use cqlmig::{CqlMigrator, GenResult, Migration};
+pub use cqlmig::{CqlMigrator, GenResult, Migration, Version};
 use cqlmig::{Db, DbRow};
 
 /// A db session.
@@ -23,39 +59,6 @@ impl<'a> From<&'a DbSession> for CdrsDbSession<'a> {
 }
 
 /// Session wrapper.
-///
-/// To create a session call `.into()` on a [`DbSession`].
-///
-/// # Examples
-///
-/// ```
-/// # use std::error::Error;
-/// # #[tokio::main]
-/// # async fn main() -> Result<(), Box<dyn Error>> {
-/// use std::borrow::Borrow;
-/// use cdrs_tokio::cluster::NodeTcpConfigBuilder;
-/// use cdrs_tokio::cluster::session::{SessionBuilder, TcpSessionBuilder};
-/// use cdrs_tokio::load_balancing::RoundRobinLoadBalancingStrategy;
-/// use cqlmig::CqlMigrator;
-/// use cqlmig_cdrs_tokio::CdrsDbSession;
-///
-/// let cluster_config = NodeTcpConfigBuilder::new()
-///     .with_contact_points(vec!["localhost:9042".to_string().into()])
-///     .build()
-///     .await
-///     .unwrap();
-/// let tcp_ses = TcpSessionBuilder::new(
-///      RoundRobinLoadBalancingStrategy::new(),
-///      cluster_config)
-///  .build()
-///  .unwrap();
-///
-/// let ses: CdrsDbSession = tcp_ses.borrow().into();
-///
-/// CqlMigrator::default().migrate(&ses, vec![]).await.unwrap();
-/// # Ok(())
-/// # }
-/// ```
 pub struct CdrsDbSession<'a> {
     ses: &'a DbSession,
 }
