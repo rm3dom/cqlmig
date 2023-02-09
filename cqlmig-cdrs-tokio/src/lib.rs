@@ -28,7 +28,11 @@ impl<'a> From<&'a DbSession> for CdrsDbSession<'a> {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// # use std::error::Error;
+/// # #[tokio::main]
+/// # async fn main() -> Result<(), Box<dyn Error>> {
+/// use std::borrow::Borrow;
 /// use cdrs_tokio::cluster::NodeTcpConfigBuilder;
 /// use cdrs_tokio::cluster::session::{SessionBuilder, TcpSessionBuilder};
 /// use cdrs_tokio::load_balancing::RoundRobinLoadBalancingStrategy;
@@ -36,20 +40,21 @@ impl<'a> From<&'a DbSession> for CdrsDbSession<'a> {
 /// use cqlmig_cdrs_tokio::CdrsDbSession;
 ///
 /// let cluster_config = NodeTcpConfigBuilder::new()
-///     .with_contact_points("localhost:9042".into())
-///     .collect()
+///     .with_contact_points(vec!["localhost:9042".to_string().into()])
 ///     .build()
 ///     .await
 ///     .unwrap();
+/// let tcp_ses = TcpSessionBuilder::new(
+///      RoundRobinLoadBalancingStrategy::new(),
+///      cluster_config)
+///  .build()
+///  .unwrap();
 ///
-/// let ses: CdrsDbSession = TcpSessionBuilder::new(
-///     RoundRobinLoadBalancingStrategy::new(),
-///     cluster_config)
-/// .build()
-/// .unwrap()
-/// .into();
+/// let ses: CdrsDbSession = tcp_ses.borrow().into();
 ///
-/// CqlMigrator::default().migrate(&ses, vec![]);
+/// CqlMigrator::default().migrate(&ses, vec![]).await.unwrap();
+/// # Ok(())
+/// # }
 /// ```
 pub struct CdrsDbSession<'a> {
     ses: &'a DbSession,

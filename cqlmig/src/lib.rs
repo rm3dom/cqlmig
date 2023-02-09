@@ -95,9 +95,43 @@ impl MigrationError {
 /// use std::str::FromStr;
 /// use cqlmig::Version;
 ///
-/// let _ = Version::from_str("V1.2.3__description");
-/// let _ = Version::from_str("1_2_3__description");
-/// let _ = Version::from_str("1");
+/// # let max = Version::from_str("1.2.4").unwrap();
+/// # let eq = Version::from_str("1.2.3").unwrap();
+/// // Valid
+/// let v = Version::from_str("1.2.3__Some Description").unwrap();
+/// # assert_eq!(1, v.major);
+/// # assert_eq!(2, v.minor);
+/// # assert_eq!(3, v.patch);
+/// # assert_eq!(Some("Some Description".to_string()), v.description);
+/// # assert!(v < max);
+/// # assert!(max > v);
+/// # assert_eq!(eq, v);
+/// let v = Version::from_str("V1_2_3__Some Description").unwrap();
+/// # assert_eq!(1, v.major);
+/// # assert_eq!(2, v.minor);
+/// # assert_eq!(3, v.patch);
+/// # assert_eq!(Some("Some Description".to_string()), v.description);
+/// # assert!(v < max);
+/// # assert!(max > v);
+/// # assert_eq!(eq, v);
+/// let v = Version::from_str("1__4").unwrap();
+/// # assert_eq!(1, v.major);
+/// # assert_eq!(0, v.minor);
+/// # assert_eq!(0, v.patch);
+/// # assert_eq!(Some("4".to_string()), v.description);
+/// # assert!(v < max);
+/// let v = Version::from_str("1").unwrap();
+/// # assert_eq!(1, v.major);
+/// # assert_eq!(0, v.minor);
+/// # assert_eq!(0, v.patch);
+/// # assert_eq!(None, v.description);
+/// # assert!(v < max);
+///
+/// // Error
+/// let _ = Version::from_str("12.__4").unwrap_err();
+/// let _ = Version::from_str("12.__").unwrap_err();
+/// let _ = Version::from_str("__").unwrap_err();
+/// let _ = Version::from_str("1__").unwrap_err();
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct Version {
@@ -196,11 +230,27 @@ impl FromStr for Version {
 
 impl Version {
     /// Convert to a semantic version formatted string.
+    ///
+    /// ```
+    /// use std::str::FromStr;
+    /// use cqlmig::Version;
+    ///
+    /// let v = Version::from_str("1_2_3__Some Description").unwrap().to_semver();
+    /// assert_eq!("1.2.3", v);
+    /// ```
     pub fn to_semver(&self) -> String {
         format!("{}.{}.{}", self.major, self.minor, self.patch)
     }
 
     /// Gets the description or empty string if there is no description.
+    ///
+    /// ```
+    /// use std::str::FromStr;
+    /// use cqlmig::Version;
+    ///
+    /// let d = Version::from_str("1_2_3__Some Description").unwrap().description();
+    /// assert_eq!("Some Description", d);
+    /// ```
     pub fn description(&self) -> String {
         self.description.as_ref().cloned().unwrap_or_default()
     }
@@ -248,14 +298,13 @@ impl Migration {
     ///
     /// See [`Version`] for `version` format.
     ///
-    /// # Examples
-    ///
-    /// ````
+    /// ```
     /// use cqlmig::Migration;
+    ///
     /// let _ = Migration::new("0.0.1", vec![
     ///     "CREATE TABLE IF NOT EXISTS examples.example ( key text PRIMARY KEY)"
     /// ]);
-    /// ````
+    /// ```
     pub fn new(version: &str, statements: Vec<&str>) -> GenResult<Self> {
         Ok(Self {
             version: Version::from_str(version)?,
@@ -310,8 +359,6 @@ impl Migration {
     ///
     /// See [`Version`] for `version` format.
     ///
-    /// # Examples
-    ///
     /// ```ignore
     /// use cqlmig::Migration;
     ///
@@ -327,14 +374,19 @@ impl Migration {
     ///
     /// See [`Version`] for `version` format.
     ///
-    /// # Examples
-    ///
-    /// ````
+    /// ```
     /// use std::path::Path;
     /// use cqlmig::Migration;
     ///
-    /// let _ = Migration::from_file(Path::new("src/migrations/V0_0_0__Init cqlmig.cql").into());
-    /// ````
+    /// # static SHASUM: &str = "e24e86bf84c256077c327bdb23e33b440c08dbde2e3b7f46b744b0b87f43f5a2";
+    /// let m = Migration::from_file(Path::new("src/migrations/V0_0_0__Init cqlmig.cql").into())
+    /// .unwrap();
+    /// # let s = m.statements();
+    /// # assert_eq!(2, s.len());
+    /// # assert!(s[0].starts_with("CREATE KEYSPACE"));
+    /// # assert!(s[1].starts_with("CREATE TABLE"));
+    /// # assert_eq!(SHASUM, m.shasum());
+    /// ```
     pub fn from_file(path: Box<Path>) -> GenResult<Self> {
         if !path.is_file() {
             return Err(MigrationError::new("Not a file").into());
@@ -356,14 +408,19 @@ impl Migration {
     ///
     /// See [`Version`] for `version` format.
     ///
-    /// # Examples
     ///
-    /// ````
+    /// ```
     /// use std::path::Path;
     /// use cqlmig::Migration;
-    ///
-    /// let _ = Migration::from_path(Path::new("src/migrations").into());
-    /// ````
+    /// # static SHASUM: &str = "e24e86bf84c256077c327bdb23e33b440c08dbde2e3b7f46b744b0b87f43f5a2";
+    /// let v1 = Migration::from_path(Path::new("src/migrations").into()).unwrap();
+    /// # assert_eq!(1, v1.len());
+    /// let v2 = Migration::from_path(Path::new("src/migrations/V0_0_0__Init cqlmig.cql").into())
+    /// .unwrap();
+    /// # assert_eq!(1, v2.len());
+    /// # assert_eq!(v1[0].shasum(), v2[0].shasum());
+    /// # assert_eq!(SHASUM, v1[0].shasum());
+    /// ```
     pub fn from_path(path: Box<Path>) -> GenResult<Vec<Migration>> {
         use std::fs;
 
@@ -667,64 +724,9 @@ fn migrations() -> Vec<Migration> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Migration, Version};
-    use std::path::Path;
-    use std::str::FromStr;
+    use crate::{Migration};
+
     static SHASUM: &str = "e24e86bf84c256077c327bdb23e33b440c08dbde2e3b7f46b744b0b87f43f5a2";
-
-    #[test]
-    fn test_version() {
-        let max = Version::from_str("1.2.4").unwrap();
-        let eq = Version::from_str("1.2.3").unwrap();
-
-        let res = Version::from_str("1.2.3__4").unwrap();
-        assert_eq!(1, res.major);
-        assert_eq!(2, res.minor);
-        assert_eq!(3, res.patch);
-        assert_eq!(Some("4".to_string()), res.description);
-        assert!(res < max);
-        assert!(max > res);
-        assert_eq!(eq, res);
-
-        let res = Version::from_str("V1_2_3__4").unwrap();
-        assert_eq!(1, res.major);
-        assert_eq!(2, res.minor);
-        assert_eq!(3, res.patch);
-        assert_eq!(Some("4".to_string()), res.description);
-        assert!(res < max);
-        assert!(max > res);
-        assert_eq!(eq, res);
-
-        let res = Version::from_str("1__4").unwrap();
-        assert_eq!(1, res.major);
-        assert_eq!(0, res.minor);
-        assert_eq!(0, res.patch);
-        assert_eq!(Some("4".to_string()), res.description);
-        assert!(res < max);
-
-        let res = Version::from_str("1").unwrap();
-        assert_eq!(1, res.major);
-        assert_eq!(0, res.minor);
-        assert_eq!(0, res.patch);
-        assert_eq!(None, res.description);
-        assert!(res < max);
-
-        let _ = Version::from_str("12.__4").unwrap_err();
-
-        let _ = Version::from_str("12.__").unwrap_err();
-
-        let _ = Version::from_str("__").unwrap_err();
-
-        let _ = Version::from_str("1__").unwrap_err();
-    }
-
-    #[test]
-    fn test_from_new() {
-        let _ = Migration::new(
-            "0.0.1",
-            vec!["CREATE TABLE IF NOT EXISTS examples.example ( key text PRIMARY KEY)"],
-        );
-    }
 
     #[test]
     fn test_from_bytes() {
@@ -737,26 +739,5 @@ mod tests {
         assert!(m.statements[0].starts_with("CREATE KEYSPACE"));
         assert!(m.statements[1].starts_with("CREATE TABLE"));
         assert_eq!(SHASUM, m.shasum);
-    }
-
-    #[test]
-    fn test_from_file() {
-        let m = Migration::from_file(Path::new("src/migrations/V0_0_0__Init cqlmig.cql").into())
-            .unwrap();
-        assert_eq!(2, m.statements.len());
-        assert!(m.statements[0].starts_with("CREATE KEYSPACE"));
-        assert!(m.statements[1].starts_with("CREATE TABLE"));
-        assert_eq!(SHASUM, m.shasum);
-    }
-
-    #[test]
-    fn test_from_path() {
-        let m1 = Migration::from_path(Path::new("src/migrations").into()).unwrap();
-        assert_eq!(1, m1.len());
-        let m2 = Migration::from_path(Path::new("src/migrations/V0_0_0__Init cqlmig.cql").into())
-            .unwrap();
-        assert_eq!(1, m2.len());
-        assert_eq!(m1[0].shasum, m2[0].shasum);
-        assert_eq!(SHASUM, m1[0].shasum);
     }
 }
