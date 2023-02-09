@@ -1,9 +1,14 @@
 [package]
 name = "cqlmig"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Base package of cqlmig."
+license = "MIT OR Apache-2.0"
+documentation = "https://github.com/rm3dom/cqlmig"
+homepage = "https://github.com/rm3dom/cqlmig"
+repository = "https://github.com/rm3dom/cqlmig"
+readme = "../README.md"
+keywords = ["cassandra", "scylladb", "migration", "cassandradb", "cql"]
 
 [dependencies]
 regex = "1.7.1"
