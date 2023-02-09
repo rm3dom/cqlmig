@@ -76,9 +76,7 @@ impl<'a> CdrsDbSession<'a> {
 
     /// Create a [`CdrsDbSession`].
     pub fn new(db: &'a DbSession) -> CdrsDbSession<'a> {
-        CdrsDbSession {
-            ses: db,
-        }
+        CdrsDbSession { ses: db }
     }
 }
 

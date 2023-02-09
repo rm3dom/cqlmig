@@ -724,7 +724,7 @@ fn migrations() -> Vec<Migration> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Migration};
+    use crate::Migration;
 
     static SHASUM: &str = "e24e86bf84c256077c327bdb23e33b440c08dbde2e3b7f46b744b0b87f43f5a2";
 
