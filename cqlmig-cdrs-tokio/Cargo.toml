@@ -13,7 +13,7 @@ keywords = ["cassandra", "scylladb", "migration", "cassandradb", "cql"]
 [dependencies]
 cqlmig = { path = "../cqlmig", version = "0.0.1" }
 tokio = { version = "1.23.0", features = ["macros", "rt-multi-thread"] }
-cdrs-tokio = "7.0.3"
+cdrs-tokio = "8.1.0"
 async-trait = "0.1.61"
 
 
